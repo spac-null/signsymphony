@@ -3,10 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignFX - Hand Signs Create Visual Effects</title>
+    <title>Your Hands Make Light — Jascha Blume</title>
+    <meta name="description" content="Make a sign. The screen answers in fire, snow, or a hundred rising hearts. A browser artwork using hand tracking and particles.">
+    <meta property="og:title" content="Your Hands Make Light — Jascha Blume">
+    <meta property="og:description" content="Make a sign. The screen answers in fire, snow, or a hundred rising hearts.">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; overflow: hidden; font-family: system-ui; }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'IBM Plex Mono', monospace;
+        }
 
         #webcam {
             position: fixed;
@@ -23,140 +35,250 @@
             pointer-events: none;
         }
 
+        /* SIGN LABEL */
+
         #sign-label {
             position: fixed;
-            bottom: 30px;
+            bottom: 2rem;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            padding: 15px 40px;
-            border-radius: 50px;
-            font-size: 24px;
-            font-weight: bold;
+            background: rgba(0,0,0,0.75);
+            color: rgba(255,255,255,0.6);
+            padding: 0.75rem 2rem;
+            border-radius: 100px;
+            font-size: 0.8125rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
             z-index: 100;
-            border: 2px solid #333;
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+            transition: color 0.2s, border-color 0.2s;
         }
 
         #sign-label.active {
-            border-color: #0ff;
-            box-shadow: 0 0 30px rgba(0,255,255,0.5);
+            color: #fff;
+            border-color: rgba(0,255,255,0.4);
         }
+
+        /* SIGN GUIDE */
 
         #sign-guide {
             position: fixed;
-            top: 20px;
-            left: 20px;
+            top: 1.5rem;
+            left: 1.5rem;
             z-index: 100;
+            width: 200px;
         }
 
         .guide-title {
-            color: #fff;
-            font-size: 18px;
-            margin-bottom: 10px;
-            text-shadow: 0 0 10px #000;
+            font-size: 0.5625rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
 
         .sign-row {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 6px 12px;
-            margin-bottom: 4px;
-            background: rgba(0,0,0,0.6);
-            border-radius: 8px;
-            border-left: 3px solid #333;
-            color: #fff;
-            font-size: 14px;
+            gap: 0.625rem;
+            padding: 0.3rem 0.625rem;
+            margin-bottom: 2px;
+            border-radius: 4px;
+            color: rgba(255,255,255,0.35);
+            font-size: 0.6875rem;
+            letter-spacing: 0.03em;
+            transition: color 0.15s, background 0.15s;
+            border-left: 2px solid transparent;
         }
 
         .sign-row.active {
-            border-left-color: #0f0;
-            background: rgba(0,255,0,0.2);
+            color: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.06);
+            border-left-color: #0ff;
         }
 
-        .sign-emoji { font-size: 24px; }
+        .sign-emoji {
+            font-size: 1rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
 
-        #start-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 200;
-        }
-        #start-overlay.hidden { display: none; }
+        /* HAND CURSOR */
 
-        #start-overlay h1 {
-            font-size: 72px;
-            color: #fff;
-            margin-bottom: 10px;
-        }
-        #start-overlay p {
-            color: #888;
-            font-size: 20px;
-            margin-bottom: 40px;
-        }
-        #start-btn {
-            padding: 20px 60px;
-            font-size: 24px;
-            background: #0ff;
-            border: none;
-            border-radius: 50px;
-            color: #000;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        #start-btn:hover { transform: scale(1.05); }
-
-        /* Hand cursor indicator */
         #hand-cursor {
             position: fixed;
-            width: 40px;
-            height: 40px;
-            border: 3px solid #0ff;
+            width: 36px;
+            height: 36px;
+            border: 2px solid rgba(0,255,255,0.7);
             border-radius: 50%;
             pointer-events: none;
             z-index: 50;
             transform: translate(-50%, -50%);
             display: none;
-            box-shadow: 0 0 20px #0ff;
+            box-shadow: 0 0 16px rgba(0,255,255,0.3), inset 0 0 8px rgba(0,255,255,0.1);
+            transition: width 0.1s, height 0.1s;
+        }
+
+        /* KEYBOARD HINT */
+
+        #keyboard-hint {
+            position: fixed;
+            bottom: 2rem;
+            right: 1.5rem;
+            font-size: 0.5625rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.2);
+            z-index: 100;
+            line-height: 1.8;
+            text-align: right;
+        }
+
+        /* START OVERLAY */
+
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        #start-overlay.hidden {
+            display: none;
+        }
+
+        .overlay-label {
+            font-size: 0.6875rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 2rem;
+        }
+
+        #start-overlay h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 400;
+            color: #fff;
+            line-height: 1.05;
+            margin-bottom: 1.5rem;
+            max-width: 12ch;
+        }
+
+        #start-overlay h1 em {
+            font-style: italic;
+            color: rgba(0,255,255,0.8);
+        }
+
+        .overlay-sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: clamp(0.8125rem, 1.5vw, 1rem);
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 3.5rem;
+            max-width: 40ch;
+            line-height: 1.7;
+        }
+
+        #start-btn {
+            padding: 1rem 3rem;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            background: transparent;
+            border: 1px solid rgba(0,255,255,0.5);
+            border-radius: 100px;
+            color: rgba(0,255,255,0.9);
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+        }
+
+        #start-btn:hover {
+            background: rgba(0,255,255,0.1);
+            border-color: rgba(0,255,255,0.9);
+            color: #fff;
+        }
+
+        .overlay-note {
+            margin-top: 2rem;
+            font-size: 0.6875rem;
+            color: rgba(255,255,255,0.18);
+            letter-spacing: 0.06em;
+        }
+
+        /* FOOTER */
+
+        #footer-credit {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.5625rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.15);
+            z-index: 99;
+            white-space: nowrap;
+            display: none;
+        }
+
+        /* FOCUS */
+        *:focus-visible {
+            outline: 1px solid rgba(0,255,255,0.6);
+            outline-offset: 4px;
         }
     </style>
 </head>
 <body>
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="fx-canvas"></canvas>
-    <div id="hand-cursor"></div>
 
-    <div id="sign-label">Show a sign!</div>
+    <video id="webcam" autoplay playsinline muted aria-hidden="true"></video>
+    <canvas id="fx-canvas" aria-hidden="true"></canvas>
+    <div id="hand-cursor" aria-hidden="true"></div>
 
-    <div id="sign-guide">
-        <div class="guide-title">SIGNS → EFFECTS</div>
-        <div class="sign-row" data-sign="peace">✌️ Peace → Fireworks</div>
-        <div class="sign-row" data-sign="love">🤟 Love → Hearts</div>
-        <div class="sign-row" data-sign="point">☝️ Point → Lightning</div>
-        <div class="sign-row" data-sign="thumb">👍 Thumb → Stars</div>
-        <div class="sign-row" data-sign="fist">👊 Fist → Explosion</div>
-        <div class="sign-row" data-sign="open">🖐️ Open → Rainbow</div>
-        <div class="sign-row" data-sign="ok">👌 OK → Bubbles</div>
-        <div class="sign-row" data-sign="rock">🤘 Rock → Fire</div>
-        <div class="sign-row" data-sign="three">🤟 Three → Snow</div>
-        <div class="sign-row" data-sign="pinch">🤏 Pinch → Vortex</div>
-        <div class="sign-row" data-sign="gun">👉 Gun → Laser</div>
-        <div class="sign-row" data-sign="call">🤙 Call → Confetti</div>
+    <div id="sign-label" aria-live="polite">Show a sign</div>
+
+    <div id="sign-guide" aria-label="Sign reference guide">
+        <div class="guide-title">What each hand becomes</div>
+        <div class="sign-row" data-sign="peace"><span class="sign-emoji">✌️</span> Peace → Fireworks</div>
+        <div class="sign-row" data-sign="love"><span class="sign-emoji">🤟</span> ILY → Hearts</div>
+        <div class="sign-row" data-sign="point"><span class="sign-emoji">☝️</span> Point → Lightning</div>
+        <div class="sign-row" data-sign="thumb"><span class="sign-emoji">👍</span> Thumb → Stars</div>
+        <div class="sign-row" data-sign="fist"><span class="sign-emoji">👊</span> Fist → Explosion</div>
+        <div class="sign-row" data-sign="open"><span class="sign-emoji">🖐️</span> Open → Rainbow</div>
+        <div class="sign-row" data-sign="ok"><span class="sign-emoji">👌</span> OK → Bubbles</div>
+        <div class="sign-row" data-sign="rock"><span class="sign-emoji">🤘</span> Rock → Fire</div>
+        <div class="sign-row" data-sign="three"><span class="sign-emoji">3️⃣</span> Three → Snow</div>
+        <div class="sign-row" data-sign="pinch"><span class="sign-emoji">🤏</span> Pinch → Vortex</div>
+        <div class="sign-row" data-sign="gun"><span class="sign-emoji">👉</span> Point out → Laser</div>
+        <div class="sign-row" data-sign="call"><span class="sign-emoji">🤙</span> Call → Confetti</div>
     </div>
 
-    <div id="start-overlay">
-        <h1>SignFX</h1>
-        <p>Hand signs create effects where you point!</p>
-        <button id="start-btn">Start Camera</button>
+    <div id="keyboard-hint" aria-hidden="true">
+        Keys 1–6, 7–0, Q–W<br>trigger effects at cursor
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <div id="footer-credit" aria-hidden="true">Jascha Blume — jaschablume.nl</div>
+
+    <div id="start-overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+        <p class="overlay-label">Jascha Blume — Browser work, 2024</p>
+        <h1 id="overlay-title">Speak<br>With <em>Sparks</em></h1>
+        <p class="overlay-sub">Make a sign. The screen answers in fire, snow, or a hundred rising hearts.</p>
+        <button id="start-btn">Show Your Hands</button>
+        <p class="overlay-note">Camera stays on your device. Nothing is uploaded.</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
     <script>
     const canvas = document.getElementById('fx-canvas');
@@ -167,6 +289,9 @@
     const startOverlay = document.getElementById('start-overlay');
     const startBtn = document.getElementById('start-btn');
     const signRows = document.querySelectorAll('.sign-row');
+    const footerCredit = document.getElementById('footer-credit');
+
+    const MAX_PARTICLES = 2500;
 
     let particles = [];
     let lastSign = 'none';
@@ -180,7 +305,6 @@
     resize();
     window.addEventListener('resize', resize);
 
-    // Particle
     class Particle {
         constructor(x, y, opt = {}) {
             this.x = x;
@@ -239,20 +363,17 @@
         }
     }
 
-    // Effects - spawn at hand position
     function fireworks(x, y) {
         const colors = ['#ff0', '#f0f', '#0ff', '#f00', '#0f0', '#fff'];
         for (let i = 0; i < 100; i++) {
             const ang = (Math.PI * 2 * i) / 100;
             const spd = 4 + Math.random() * 8;
             particles.push(new Particle(x, y, {
-                vx: Math.cos(ang) * spd,
-                vy: Math.sin(ang) * spd,
+                vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
                 color: colors[~~(Math.random() * colors.length)],
                 size: 3 + Math.random() * 4,
                 life: 50 + Math.random() * 40,
-                gravity: 0.15,
-                friction: 0.96
+                gravity: 0.15, friction: 0.96
             }));
         }
     }
@@ -260,13 +381,10 @@
     function hearts(x, y) {
         for (let i = 0; i < 40; i++) {
             particles.push(new Particle(x + (Math.random() - 0.5) * 150, y + (Math.random() - 0.5) * 50, {
-                vx: (Math.random() - 0.5) * 6,
-                vy: -3 - Math.random() * 5,
+                vx: (Math.random() - 0.5) * 6, vy: -3 - Math.random() * 5,
                 color: `hsl(${340 + Math.random() * 40}, 100%, ${50 + Math.random() * 30}%)`,
-                size: 10 + Math.random() * 15,
-                type: 'heart',
-                life: 70 + Math.random() * 50,
-                gravity: -0.03
+                size: 10 + Math.random() * 15, type: 'heart',
+                life: 70 + Math.random() * 50, gravity: -0.03
             }));
         }
     }
@@ -283,12 +401,9 @@
                     bx + (dx * j / dist) + (Math.random() - 0.5) * 8,
                     by + (dy * j / dist) + (Math.random() - 0.5) * 8,
                     {
-                        vx: (Math.random() - 0.5) * 3,
-                        vy: (Math.random() - 0.5) * 3,
+                        vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
                         color: `hsl(${180 + Math.random() * 60}, 100%, ${70 + Math.random() * 30}%)`,
-                        size: 3 + Math.random() * 4,
-                        life: 20 + Math.random() * 20,
-                        type: 'spark'
+                        size: 3 + Math.random() * 4, life: 20 + Math.random() * 20, type: 'spark'
                     }
                 ));
             }
@@ -301,13 +416,10 @@
             const ang = Math.random() * Math.PI * 2;
             const spd = 3 + Math.random() * 6;
             particles.push(new Particle(x, y, {
-                vx: Math.cos(ang) * spd,
-                vy: Math.sin(ang) * spd,
+                vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
                 color: `hsl(${40 + Math.random() * 30}, 100%, ${60 + Math.random() * 40}%)`,
-                size: 8 + Math.random() * 12,
-                type: 'star',
-                life: 60 + Math.random() * 40,
-                friction: 0.95
+                size: 8 + Math.random() * 12, type: 'star',
+                life: 60 + Math.random() * 40, friction: 0.95
             }));
         }
     }
@@ -316,23 +428,16 @@
         for (let i = 0; i < 80; i++) {
             const ang = (Math.PI * 2 * i) / 80;
             particles.push(new Particle(x, y, {
-                vx: Math.cos(ang) * 15,
-                vy: Math.sin(ang) * 15,
+                vx: Math.cos(ang) * 15, vy: Math.sin(ang) * 15,
                 color: `hsl(${10 + Math.random() * 40}, 100%, ${50 + Math.random() * 40}%)`,
-                size: 6 + Math.random() * 6,
-                life: 30 + Math.random() * 20,
-                friction: 0.9
+                size: 6 + Math.random() * 6, life: 30 + Math.random() * 20, friction: 0.9
             }));
         }
         for (let i = 0; i < 50; i++) {
             particles.push(new Particle(x, y, {
-                vx: (Math.random() - 0.5) * 20,
-                vy: (Math.random() - 0.5) * 20 - 5,
-                color: '#fff',
-                size: 2 + Math.random() * 4,
-                life: 50 + Math.random() * 40,
-                gravity: 0.3,
-                friction: 0.98
+                vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20 - 5,
+                color: '#fff', size: 2 + Math.random() * 4,
+                life: 50 + Math.random() * 40, gravity: 0.3, friction: 0.98
             }));
         }
     }
@@ -395,12 +500,12 @@
     }
 
     function laser(x, y) {
-        const targetX = x + 400, targetY = y;
+        const targetX = x + 400;
         for (let i = 0; i < 50; i++) {
             const t = i / 50;
             particles.push(new Particle(x + (targetX - x) * t, y + (Math.random() - 0.5) * 20, {
                 vx: 10 + Math.random() * 5, vy: (Math.random() - 0.5) * 2,
-                color: `hsl(${0 + Math.random() * 20}, 100%, 60%)`,
+                color: `hsl(${Math.random() * 20}, 100%, 60%)`,
                 size: 3 + Math.random() * 3, life: 20 + Math.random() * 15, type: 'spark'
             }));
         }
@@ -419,22 +524,23 @@
     }
 
     function triggerEffect(sign, x, y) {
-        const fx = { peace: fireworks, love: hearts, point: lightning, thumb: stars,
+        const fx = {
+            peace: fireworks, love: hearts, point: lightning, thumb: stars,
             fist: explosion, open: rainbow, ok: bubbles, rock: fire,
-            three: snow, pinch: vortex, gun: laser, call: confetti };
+            three: snow, pinch: vortex, gun: laser, call: confetti
+        };
         if (fx[sign]) fx[sign](x, y);
     }
 
-    // Animation
     function animate() {
         requestAnimationFrame(animate);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         particles = particles.filter(p => p.life > 0);
+        if (particles.length > MAX_PARTICLES) particles.splice(0, particles.length - MAX_PARTICLES);
         particles.forEach(p => { p.update(); p.draw(); });
     }
     animate();
 
-    // Hand tracking
     async function initHands() {
         const hands = new Hands({
             locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
@@ -456,7 +562,7 @@
 
     function onResults(res) {
         if (!res.multiHandLandmarks?.length) {
-            signLabel.textContent = 'Show a sign!';
+            signLabel.textContent = 'Show a sign';
             signLabel.classList.remove('active');
             handCursor.style.display = 'none';
             updateGuide('none');
@@ -466,32 +572,27 @@
         const lm = res.multiHandLandmarks[0];
         const isRight = res.multiHandedness[0].label === 'Right';
 
-        // Get hand center (palm)
-        const palm = lm[9]; // middle finger base
-        // Convert to screen coords (mirrored)
+        const palm = lm[9];
         handX = (1 - palm.x) * window.innerWidth;
         handY = palm.y * window.innerHeight;
 
-        // Show cursor
         handCursor.style.display = 'block';
         handCursor.style.left = handX + 'px';
         handCursor.style.top = handY + 'px';
 
-        // Detect sign
         const sign = detectSign(lm, isRight);
 
         const names = {
-            peace: '✌️ PEACE', love: '🤟 LOVE', point: '☝️ POINT',
-            thumb: '👍 THUMB', fist: '👊 FIST', open: '🖐️ OPEN',
-            ok: '👌 OK', rock: '🤘 ROCK', three: '3️⃣ THREE',
-            pinch: '🤏 PINCH', gun: '👉 GUN', call: '🤙 CALL'
+            peace: '✌️  PEACE', love: '🤟  ILY', point: '☝️  POINT',
+            thumb: '👍  THUMB', fist: '👊  FIST', open: '🖐️  OPEN',
+            ok: '👌  OK', rock: '🤘  ROCK', three: '3️⃣  THREE',
+            pinch: '🤏  PINCH', gun: '👉  POINT OUT', call: '🤙  CALL'
         };
 
         if (sign !== 'unknown') {
             signLabel.textContent = names[sign];
             signLabel.classList.add('active');
 
-            // Track hold time
             if (sign === lastSign) {
                 signHoldTime++;
             } else {
@@ -499,13 +600,12 @@
                 triggerEffect(sign, handX, handY);
             }
 
-            // Continuous effects while holding
             const continuous = { rock: fire, three: snow, ok: bubbles, gun: laser };
             if (continuous[sign] && signHoldTime % 5 === 0) {
                 continuous[sign](handX, handY);
             }
         } else {
-            signLabel.textContent = '🤔 ?';
+            signLabel.textContent = '?';
             signLabel.classList.remove('active');
             signHoldTime = 0;
         }
@@ -517,14 +617,11 @@
     function detectSign(lm, isRight) {
         const tips = [4, 8, 12, 16, 20];
         const pips = [3, 6, 10, 14, 18];
-        const mcps = [2, 5, 9, 13, 17];
         const ext = [];
 
-        // Thumb - check if extended outward
         const thumbOut = isRight ? lm[4].x > lm[3].x : lm[4].x < lm[3].x;
         ext[0] = thumbOut;
 
-        // Fingers - tip above pip = extended
         for (let i = 1; i < 5; i++) {
             ext[i] = lm[tips[i]].y < lm[pips[i]].y - 0.02;
         }
@@ -532,45 +629,20 @@
         const [thumb, index, middle, ring, pinky] = ext;
         const count = ext.filter(Boolean).length;
 
-        // Distance helpers
         const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
         const thumbIndexDist = dist(4, 8);
-        const thumbMiddleDist = dist(4, 12);
 
-        // OK sign: thumb and index touching, others extended or curled
         if (thumbIndexDist < 0.08 && middle) return 'ok';
-
-        // Pinch: thumb and index very close
         if (thumbIndexDist < 0.06 && !middle && !ring && !pinky) return 'pinch';
-
-        // Rock: index + pinky, middle + ring curled
         if (index && !middle && !ring && pinky) return 'rock';
-
-        // Love/ILY: thumb + index + pinky
         if (thumb && index && !middle && !ring && pinky) return 'love';
-
-        // Call/Shaka: thumb + pinky only
         if (thumb && !index && !middle && !ring && pinky) return 'call';
-
-        // Gun: thumb + index extended, others curled
         if (thumb && index && !middle && !ring && !pinky) return 'gun';
-
-        // Peace: index + middle only
         if (!thumb && index && middle && !ring && !pinky) return 'peace';
-
-        // Three: index + middle + ring
         if (index && middle && ring && !pinky) return 'three';
-
-        // Point: only index
         if (!thumb && index && !middle && !ring && !pinky) return 'point';
-
-        // Thumbs up: only thumb extended, hand vertical
         if (thumb && !index && !middle && !ring && !pinky) return 'thumb';
-
-        // Fist: nothing extended
         if (count === 0) return 'fist';
-
-        // Open: 4+ extended
         if (count >= 4) return 'open';
 
         return 'unknown';
@@ -582,19 +654,22 @@
 
     startBtn.onclick = async () => {
         startOverlay.classList.add('hidden');
+        footerCredit.style.display = 'block';
         await initHands();
     };
 
-    // Keyboard
+    // Keyboard: 1–6 first row, 7–0 second row, q=gun, w=call
+    const keyMap = {
+        '1':'peace', '2':'love', '3':'point', '4':'thumb', '5':'fist', '6':'open',
+        '7':'ok', '8':'rock', '9':'three', '0':'pinch', 'q':'gun', 'w':'call'
+    };
     document.onkeydown = e => {
-        const x = handX || window.innerWidth / 2;
-        const y = handY || window.innerHeight / 2;
-        if (e.key === '1') triggerEffect('peace', x, y);
-        if (e.key === '2') triggerEffect('love', x, y);
-        if (e.key === '3') triggerEffect('point', x, y);
-        if (e.key === '4') triggerEffect('thumb', x, y);
-        if (e.key === '5') triggerEffect('fist', x, y);
-        if (e.key === '6') triggerEffect('open', x, y);
+        const sign = keyMap[e.key.toLowerCase()];
+        if (sign) {
+            const x = handX || window.innerWidth / 2;
+            const y = handY || window.innerHeight / 2;
+            triggerEffect(sign, x, y);
+        }
     };
     </script>
 </body>
