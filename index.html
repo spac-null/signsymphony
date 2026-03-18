@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignFX - Hand Signs Create Visual Effects</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; overflow: hidden; font-family: system-ui; }
+
+        #webcam {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #fx-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        #sign-label {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 100;
+            border: 2px solid #333;
+        }
+
+        #sign-label.active {
+            border-color: #0ff;
+            box-shadow: 0 0 30px rgba(0,255,255,0.5);
+        }
+
+        #sign-guide {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        .guide-title {
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #000;
+        }
+
+        .sign-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            margin-bottom: 4px;
+            background: rgba(0,0,0,0.6);
+            border-radius: 8px;
+            border-left: 3px solid #333;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .sign-row.active {
+            border-left-color: #0f0;
+            background: rgba(0,255,0,0.2);
+        }
+
+        .sign-emoji { font-size: 24px; }
+
+        #start-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        #start-overlay.hidden { display: none; }
+
+        #start-overlay h1 {
+            font-size: 72px;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        #start-overlay p {
+            color: #888;
+            font-size: 20px;
+            margin-bottom: 40px;
+        }
+        #start-btn {
+            padding: 20px 60px;
+            font-size: 24px;
+            background: #0ff;
+            border: none;
+            border-radius: 50px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #start-btn:hover { transform: scale(1.05); }
+
+        /* Hand cursor indicator */
+        #hand-cursor {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #0ff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 50;
+            transform: translate(-50%, -50%);
+            display: none;
+            box-shadow: 0 0 20px #0ff;
+        }
+    </style>
+</head>
+<body>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="fx-canvas"></canvas>
+    <div id="hand-cursor"></div>
+
+    <div id="sign-label">Show a sign!</div>
+
+    <div id="sign-guide">
+        <div class="guide-title">SIGNS → EFFECTS</div>
+        <div class="sign-row" data-sign="peace">✌️ Peace → Fireworks</div>
+        <div class="sign-row" data-sign="love">🤟 Love → Hearts</div>
+        <div class="sign-row" data-sign="point">☝️ Point → Lightning</div>
+        <div class="sign-row" data-sign="thumb">👍 Thumb → Stars</div>
+        <div class="sign-row" data-sign="fist">👊 Fist → Explosion</div>
+        <div class="sign-row" data-sign="open">🖐️ Open → Rainbow</div>
+        <div class="sign-row" data-sign="ok">👌 OK → Bubbles</div>
+        <div class="sign-row" data-sign="rock">🤘 Rock → Fire</div>
+        <div class="sign-row" data-sign="three">🤟 Three → Snow</div>
+        <div class="sign-row" data-sign="pinch">🤏 Pinch → Vortex</div>
+        <div class="sign-row" data-sign="gun">👉 Gun → Laser</div>
+        <div class="sign-row" data-sign="call">🤙 Call → Confetti</div>
+    </div>
+
+    <div id="start-overlay">
+        <h1>SignFX</h1>
+        <p>Hand signs create effects where you point!</p>
+        <button id="start-btn">Start Camera</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script>
+    const canvas = document.getElementById('fx-canvas');
+    const ctx = canvas.getContext('2d');
+    const webcam = document.getElementById('webcam');
+    const signLabel = document.getElementById('sign-label');
+    const handCursor = document.getElementById('hand-cursor');
+    const startOverlay = document.getElementById('start-overlay');
+    const startBtn = document.getElementById('start-btn');
+    const signRows = document.querySelectorAll('.sign-row');
+
+    let particles = [];
+    let lastSign = 'none';
+    let handX = 0, handY = 0;
+    let signHoldTime = 0;
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Particle
+    class Particle {
+        constructor(x, y, opt = {}) {
+            this.x = x;
+            this.y = y;
+            this.vx = opt.vx ?? (Math.random() - 0.5) * 10;
+            this.vy = opt.vy ?? (Math.random() - 0.5) * 10;
+            this.life = opt.life ?? 60;
+            this.maxLife = this.life;
+            this.size = opt.size ?? 4;
+            this.color = opt.color ?? '#fff';
+            this.type = opt.type ?? 'circle';
+            this.gravity = opt.gravity ?? 0;
+            this.friction = opt.friction ?? 0.98;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += this.gravity;
+            this.vx *= this.friction;
+            this.vy *= this.friction;
+            this.life--;
+        }
+
+        draw() {
+            const a = this.life / this.maxLife;
+            ctx.globalAlpha = a;
+            ctx.fillStyle = this.color;
+
+            if (this.type === 'circle') {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * a, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (this.type === 'heart') {
+                const s = this.size * 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + s/4);
+                ctx.bezierCurveTo(this.x, this.y, this.x - s/2, this.y, this.x - s/2, this.y + s/4);
+                ctx.bezierCurveTo(this.x - s/2, this.y + s/2, this.x, this.y + s*0.75, this.x, this.y + s);
+                ctx.bezierCurveTo(this.x, this.y + s*0.75, this.x + s/2, this.y + s/2, this.x + s/2, this.y + s/4);
+                ctx.bezierCurveTo(this.x + s/2, this.y, this.x, this.y, this.x, this.y + s/4);
+                ctx.fill();
+            } else if (this.type === 'star') {
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    const ang = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+                    const r = i % 2 === 0 ? this.size : this.size / 2;
+                    ctx.lineTo(this.x + Math.cos(ang) * r, this.y + Math.sin(ang) * r);
+                }
+                ctx.closePath();
+                ctx.fill();
+            } else if (this.type === 'spark') {
+                ctx.fillRect(this.x, this.y, this.size * 2, 2);
+            }
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // Effects - spawn at hand position
+    function fireworks(x, y) {
+        const colors = ['#ff0', '#f0f', '#0ff', '#f00', '#0f0', '#fff'];
+        for (let i = 0; i < 100; i++) {
+            const ang = (Math.PI * 2 * i) / 100;
+            const spd = 4 + Math.random() * 8;
+            particles.push(new Particle(x, y, {
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd,
+                color: colors[~~(Math.random() * colors.length)],
+                size: 3 + Math.random() * 4,
+                life: 50 + Math.random() * 40,
+                gravity: 0.15,
+                friction: 0.96
+            }));
+        }
+    }
+
+    function hearts(x, y) {
+        for (let i = 0; i < 40; i++) {
+            particles.push(new Particle(x + (Math.random() - 0.5) * 150, y + (Math.random() - 0.5) * 50, {
+                vx: (Math.random() - 0.5) * 6,
+                vy: -3 - Math.random() * 5,
+                color: `hsl(${340 + Math.random() * 40}, 100%, ${50 + Math.random() * 30}%)`,
+                size: 10 + Math.random() * 15,
+                type: 'heart',
+                life: 70 + Math.random() * 50,
+                gravity: -0.03
+            }));
+        }
+    }
+
+    function lightning(x, y) {
+        let bx = x, by = y - 50;
+        for (let i = 0; i < 20; i++) {
+            const nx = bx + (Math.random() - 0.5) * 80;
+            const ny = by + 30 + Math.random() * 30;
+            const dx = nx - bx, dy = ny - by;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            for (let j = 0; j < dist; j += 4) {
+                particles.push(new Particle(
+                    bx + (dx * j / dist) + (Math.random() - 0.5) * 8,
+                    by + (dy * j / dist) + (Math.random() - 0.5) * 8,
+                    {
+                        vx: (Math.random() - 0.5) * 3,
+                        vy: (Math.random() - 0.5) * 3,
+                        color: `hsl(${180 + Math.random() * 60}, 100%, ${70 + Math.random() * 30}%)`,
+                        size: 3 + Math.random() * 4,
+                        life: 20 + Math.random() * 20,
+                        type: 'spark'
+                    }
+                ));
+            }
+            bx = nx; by = ny;
+        }
+    }
+
+    function stars(x, y) {
+        for (let i = 0; i < 50; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const spd = 3 + Math.random() * 6;
+            particles.push(new Particle(x, y, {
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd,
+                color: `hsl(${40 + Math.random() * 30}, 100%, ${60 + Math.random() * 40}%)`,
+                size: 8 + Math.random() * 12,
+                type: 'star',
+                life: 60 + Math.random() * 40,
+                friction: 0.95
+            }));
+        }
+    }
+
+    function explosion(x, y) {
+        for (let i = 0; i < 80; i++) {
+            const ang = (Math.PI * 2 * i) / 80;
+            particles.push(new Particle(x, y, {
+                vx: Math.cos(ang) * 15,
+                vy: Math.sin(ang) * 15,
+                color: `hsl(${10 + Math.random() * 40}, 100%, ${50 + Math.random() * 40}%)`,
+                size: 6 + Math.random() * 6,
+                life: 30 + Math.random() * 20,
+                friction: 0.9
+            }));
+        }
+        for (let i = 0; i < 50; i++) {
+            particles.push(new Particle(x, y, {
+                vx: (Math.random() - 0.5) * 20,
+                vy: (Math.random() - 0.5) * 20 - 5,
+                color: '#fff',
+                size: 2 + Math.random() * 4,
+                life: 50 + Math.random() * 40,
+                gravity: 0.3,
+                friction: 0.98
+            }));
+        }
+    }
+
+    function rainbow(x, y) {
+        for (let i = 0; i < 120; i++) {
+            const hue = (i / 120) * 360;
+            const ang = (i / 120) * Math.PI * 2;
+            const dist = 30 + Math.random() * 40;
+            particles.push(new Particle(x + Math.cos(ang) * dist, y + Math.sin(ang) * dist, {
+                vx: Math.cos(ang) * 4, vy: Math.sin(ang) * 4,
+                color: `hsl(${hue}, 100%, 60%)`, size: 5 + Math.random() * 5,
+                life: 60 + Math.random() * 40, gravity: 0.02, friction: 0.97
+            }));
+        }
+    }
+
+    function bubbles(x, y) {
+        for (let i = 0; i < 30; i++) {
+            const sz = 10 + Math.random() * 25;
+            particles.push(new Particle(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 50, {
+                vx: (Math.random() - 0.5) * 3, vy: -2 - Math.random() * 4,
+                color: `hsla(${180 + Math.random() * 60}, 80%, 70%, 0.6)`,
+                size: sz, life: 80 + Math.random() * 60, gravity: -0.05, friction: 0.99
+            }));
+        }
+    }
+
+    function fire(x, y) {
+        for (let i = 0; i < 60; i++) {
+            particles.push(new Particle(x + (Math.random() - 0.5) * 60, y, {
+                vx: (Math.random() - 0.5) * 4, vy: -5 - Math.random() * 10,
+                color: `hsl(${Math.random() * 40}, 100%, ${50 + Math.random() * 30}%)`,
+                size: 8 + Math.random() * 12, life: 30 + Math.random() * 30,
+                gravity: -0.1, friction: 0.96
+            }));
+        }
+    }
+
+    function snow(x, y) {
+        for (let i = 0; i < 50; i++) {
+            particles.push(new Particle(x + (Math.random() - 0.5) * 300, y - 100, {
+                vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random() * 3,
+                color: '#fff', size: 3 + Math.random() * 6,
+                life: 100 + Math.random() * 80, gravity: 0.02, friction: 0.99
+            }));
+        }
+    }
+
+    function vortex(x, y) {
+        for (let i = 0; i < 80; i++) {
+            const ang = (i / 80) * Math.PI * 6;
+            const dist = 10 + (i / 80) * 100;
+            particles.push(new Particle(x + Math.cos(ang) * dist, y + Math.sin(ang) * dist, {
+                vx: Math.cos(ang + Math.PI/2) * 5, vy: Math.sin(ang + Math.PI/2) * 5,
+                color: `hsl(${260 + Math.random() * 60}, 100%, 60%)`,
+                size: 4 + Math.random() * 4, life: 50 + Math.random() * 30, friction: 0.95
+            }));
+        }
+    }
+
+    function laser(x, y) {
+        const targetX = x + 400, targetY = y;
+        for (let i = 0; i < 50; i++) {
+            const t = i / 50;
+            particles.push(new Particle(x + (targetX - x) * t, y + (Math.random() - 0.5) * 20, {
+                vx: 10 + Math.random() * 5, vy: (Math.random() - 0.5) * 2,
+                color: `hsl(${0 + Math.random() * 20}, 100%, 60%)`,
+                size: 3 + Math.random() * 3, life: 20 + Math.random() * 15, type: 'spark'
+            }));
+        }
+    }
+
+    function confetti(x, y) {
+        const colors = ['#ff0', '#f0f', '#0ff', '#f00', '#0f0', '#00f', '#ff8800', '#ff0088'];
+        for (let i = 0; i < 80; i++) {
+            particles.push(new Particle(x + (Math.random() - 0.5) * 100, y - 50, {
+                vx: (Math.random() - 0.5) * 12, vy: -8 - Math.random() * 8,
+                color: colors[~~(Math.random() * colors.length)],
+                size: 4 + Math.random() * 6, life: 80 + Math.random() * 50,
+                gravity: 0.2, friction: 0.98
+            }));
+        }
+    }
+
+    function triggerEffect(sign, x, y) {
+        const fx = { peace: fireworks, love: hearts, point: lightning, thumb: stars,
+            fist: explosion, open: rainbow, ok: bubbles, rock: fire,
+            three: snow, pinch: vortex, gun: laser, call: confetti };
+        if (fx[sign]) fx[sign](x, y);
+    }
+
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles = particles.filter(p => p.life > 0);
+        particles.forEach(p => { p.update(); p.draw(); });
+    }
+    animate();
+
+    // Hand tracking
+    async function initHands() {
+        const hands = new Hands({
+            locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+        });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.3
+        });
+        hands.onResults(onResults);
+
+        const cam = new Camera(webcam, {
+            onFrame: async () => await hands.send({ image: webcam }),
+            width: 1280, height: 720
+        });
+        await cam.start();
+    }
+
+    function onResults(res) {
+        if (!res.multiHandLandmarks?.length) {
+            signLabel.textContent = 'Show a sign!';
+            signLabel.classList.remove('active');
+            handCursor.style.display = 'none';
+            updateGuide('none');
+            return;
+        }
+
+        const lm = res.multiHandLandmarks[0];
+        const isRight = res.multiHandedness[0].label === 'Right';
+
+        // Get hand center (palm)
+        const palm = lm[9]; // middle finger base
+        // Convert to screen coords (mirrored)
+        handX = (1 - palm.x) * window.innerWidth;
+        handY = palm.y * window.innerHeight;
+
+        // Show cursor
+        handCursor.style.display = 'block';
+        handCursor.style.left = handX + 'px';
+        handCursor.style.top = handY + 'px';
+
+        // Detect sign
+        const sign = detectSign(lm, isRight);
+
+        const names = {
+            peace: '✌️ PEACE', love: '🤟 LOVE', point: '☝️ POINT',
+            thumb: '👍 THUMB', fist: '👊 FIST', open: '🖐️ OPEN',
+            ok: '👌 OK', rock: '🤘 ROCK', three: '3️⃣ THREE',
+            pinch: '🤏 PINCH', gun: '👉 GUN', call: '🤙 CALL'
+        };
+
+        if (sign !== 'unknown') {
+            signLabel.textContent = names[sign];
+            signLabel.classList.add('active');
+
+            // Track hold time
+            if (sign === lastSign) {
+                signHoldTime++;
+            } else {
+                signHoldTime = 0;
+                triggerEffect(sign, handX, handY);
+            }
+
+            // Continuous effects while holding
+            const continuous = { rock: fire, three: snow, ok: bubbles, gun: laser };
+            if (continuous[sign] && signHoldTime % 5 === 0) {
+                continuous[sign](handX, handY);
+            }
+        } else {
+            signLabel.textContent = '🤔 ?';
+            signLabel.classList.remove('active');
+            signHoldTime = 0;
+        }
+
+        updateGuide(sign);
+        lastSign = sign;
+    }
+
+    function detectSign(lm, isRight) {
+        const tips = [4, 8, 12, 16, 20];
+        const pips = [3, 6, 10, 14, 18];
+        const mcps = [2, 5, 9, 13, 17];
+        const ext = [];
+
+        // Thumb - check if extended outward
+        const thumbOut = isRight ? lm[4].x > lm[3].x : lm[4].x < lm[3].x;
+        ext[0] = thumbOut;
+
+        // Fingers - tip above pip = extended
+        for (let i = 1; i < 5; i++) {
+            ext[i] = lm[tips[i]].y < lm[pips[i]].y - 0.02;
+        }
+
+        const [thumb, index, middle, ring, pinky] = ext;
+        const count = ext.filter(Boolean).length;
+
+        // Distance helpers
+        const dist = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
+        const thumbIndexDist = dist(4, 8);
+        const thumbMiddleDist = dist(4, 12);
+
+        // OK sign: thumb and index touching, others extended or curled
+        if (thumbIndexDist < 0.08 && middle) return 'ok';
+
+        // Pinch: thumb and index very close
+        if (thumbIndexDist < 0.06 && !middle && !ring && !pinky) return 'pinch';
+
+        // Rock: index + pinky, middle + ring curled
+        if (index && !middle && !ring && pinky) return 'rock';
+
+        // Love/ILY: thumb + index + pinky
+        if (thumb && index && !middle && !ring && pinky) return 'love';
+
+        // Call/Shaka: thumb + pinky only
+        if (thumb && !index && !middle && !ring && pinky) return 'call';
+
+        // Gun: thumb + index extended, others curled
+        if (thumb && index && !middle && !ring && !pinky) return 'gun';
+
+        // Peace: index + middle only
+        if (!thumb && index && middle && !ring && !pinky) return 'peace';
+
+        // Three: index + middle + ring
+        if (index && middle && ring && !pinky) return 'three';
+
+        // Point: only index
+        if (!thumb && index && !middle && !ring && !pinky) return 'point';
+
+        // Thumbs up: only thumb extended, hand vertical
+        if (thumb && !index && !middle && !ring && !pinky) return 'thumb';
+
+        // Fist: nothing extended
+        if (count === 0) return 'fist';
+
+        // Open: 4+ extended
+        if (count >= 4) return 'open';
+
+        return 'unknown';
+    }
+
+    function updateGuide(sign) {
+        signRows.forEach(r => r.classList.toggle('active', r.dataset.sign === sign));
+    }
+
+    startBtn.onclick = async () => {
+        startOverlay.classList.add('hidden');
+        await initHands();
+    };
+
+    // Keyboard
+    document.onkeydown = e => {
+        const x = handX || window.innerWidth / 2;
+        const y = handY || window.innerHeight / 2;
+        if (e.key === '1') triggerEffect('peace', x, y);
+        if (e.key === '2') triggerEffect('love', x, y);
+        if (e.key === '3') triggerEffect('point', x, y);
+        if (e.key === '4') triggerEffect('thumb', x, y);
+        if (e.key === '5') triggerEffect('fist', x, y);
+        if (e.key === '6') triggerEffect('open', x, y);
+    };
+    </script>
+</body>
+</html>
